@@ -1,18 +1,9 @@
 name: IEPL 当前网络 IPv4 自动白名单
-desc: 每 3 分钟检测；点击首页面板手动添加。仅 Stash VPN 连接时运行。首次需在本地填写 API Key。
+desc: 每 3 分钟自动检测；手动添加请在 Stash 本地脚本编辑器运行手动脚本。首次需在本地填写 API Key。
 rules:
   - DOMAIN,www.mkcloud.net,DIRECT
   - DOMAIN,api.ipify.org,DIRECT
   - DOMAIN,ipv4.icanhazip.com,DIRECT
-http:
-  force-http-engine:
-    - 'www.mkcloud.net:80'
-  script:
-    - name: iepl-whitelist-7586
-      match: '^http://www\.mkcloud\.net(?::80)?/iepl-whitelist-trigger/2ebbf7e4c17c03ee644144f1/?(?:\?.*)?$'
-      type: request
-      timeout: 50
-      argument: manual
 cron:
   script:
     - name: iepl-whitelist-7586
@@ -20,12 +11,11 @@ cron:
       timeout: 50
       argument: auto
 tiles:
-  - name: iepl-whitelist-7586
+  - name: iepl-whitelist-status-7586-v2
     interval: 180
-    title: IEPL 白名单
-    content: 点击手动检测并添加
+    title: IEPL 白名单状态
+    content: 等待自动检测；手动添加请运行本地脚本
     icon: network
-    url: 'http://www.mkcloud.net/iepl-whitelist-trigger/2ebbf7e4c17c03ee644144f1'
 script-providers:
   iepl-whitelist-7586:
     payload: |
@@ -38,7 +28,6 @@ script-providers:
         if (KEY) $persistentStore.write(KEY, KEY_STORE);
         KEY = KEY || $persistentStore.read(KEY_STORE) || '';
         var STORE = 'mkcloud.iepl.7586.v1';
-        var MANUAL_URL = "http://www.mkcloud.net/iepl-whitelist-trigger/2ebbf7e4c17c03ee644144f1";
         var isTile = typeof $script !== 'undefined' && $script.type === 'tile';
         var isRequest = typeof $request !== 'undefined';
         var owner = String(Date.now()) + '-' + Math.random();
@@ -56,12 +45,12 @@ script-providers:
               headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store'},
               body: message + '\n'}});
           } else if (isTile) {
-            $done({title: 'IEPL 白名单', content: message, icon: 'network', url: MANUAL_URL});
+            $done({title: 'IEPL 白名单', content: message, icon: 'network'});
           } else { $done(); }
         }
         if (isTile) {
           var state = read('.status');
-          finish(true, state.message ? state.message + '\n' + new Date(state.time).toLocaleString() : '等待检测；点击面板手动添加');
+          finish(true, state.message ? state.message + '\n' + new Date(state.time).toLocaleString() : '等待自动检测；手动添加请运行本地脚本');
           return;
         }
         if (!KEY) {
@@ -178,4 +167,14 @@ script-providers:
           if (!isRequest) $notification.post('IEPL 白名单', '检测或添加失败', message);
           finish(false, message);
         });
+      })();
+  iepl-whitelist-status-7586-v2:
+    payload: |
+      // Status only. No network requests and no browser trigger.
+      (function () {
+        var state;
+        try { state = JSON.parse($persistentStore.read('mkcloud.iepl.7586.v1.status') || '{}'); }
+        catch (_) { state = {}; }
+        $done({title: 'IEPL 白名单状态', icon: 'network',
+          content: state.message ? state.message + '\n' + new Date(state.time).toLocaleString() : '等待自动检测；手动添加请运行本地脚本'});
       })();

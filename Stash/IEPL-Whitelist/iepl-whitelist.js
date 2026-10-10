@@ -7,7 +7,6 @@
   if (KEY) $persistentStore.write(KEY, KEY_STORE);
   KEY = KEY || $persistentStore.read(KEY_STORE) || '';
   var STORE = 'mkcloud.iepl.7586.v1';
-  var MANUAL_URL = "http://www.mkcloud.net/iepl-whitelist-trigger/2ebbf7e4c17c03ee644144f1";
   var isTile = typeof $script !== 'undefined' && $script.type === 'tile';
   var isRequest = typeof $request !== 'undefined';
   var owner = String(Date.now()) + '-' + Math.random();
@@ -25,12 +24,12 @@
         headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store'},
         body: message + '\n'}});
     } else if (isTile) {
-      $done({title: 'IEPL 白名单', content: message, icon: 'network', url: MANUAL_URL});
+      $done({title: 'IEPL 白名单', content: message, icon: 'network'});
     } else { $done(); }
   }
   if (isTile) {
     var state = read('.status');
-    finish(true, state.message ? state.message + '\n' + new Date(state.time).toLocaleString() : '等待检测；点击面板手动添加');
+    finish(true, state.message ? state.message + '\n' + new Date(state.time).toLocaleString() : '等待自动检测；手动添加请运行本地脚本');
     return;
   }
   if (!KEY) {
