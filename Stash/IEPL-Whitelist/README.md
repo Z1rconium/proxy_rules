@@ -66,3 +66,11 @@
 - [定时任务](https://stash.wiki/en/script/scheduled-tasks)
 - [HTTP Client 与指定代理](https://stash.wiki/script/syntax-and-interface)
 - [面板](https://stash.wiki/script/tile)
+
+## 诊断“直连网络请求失败”
+
+新版不再隐藏所有底层错误：提示会区分 IPv4 检测源与 API 添加阶段，并显示耗时和脱敏的底层错误。取得 HTTP 401/403 时明确显示认证或访问拒绝，即使客户端同时返回 error 回调也优先识别有效 HTTP 响应。
+
+检测源超时为每个 8 秒，API 请求为 20 秒，cron 和请求脚本总超时为 50 秒。不会自动将检测/API 请求切换到代理，也不会跳过 TLS 证书验证。
+
+遇到 HTTP 401 请核对当前密钥；更新本地覆写中的 KEY 常量会覆盖持久化存储的旧密钥。若只是更换了服务商后台密钥，Stash 不会自动获知新密钥。

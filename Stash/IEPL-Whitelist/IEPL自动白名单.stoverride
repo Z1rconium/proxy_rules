@@ -11,13 +11,13 @@ http:
     - name: iepl-whitelist-7586
       match: '^http://www\.mkcloud\.net(?::80)?/iepl-whitelist-trigger/2ebbf7e4c17c03ee644144f1/?(?:\?.*)?$'
       type: request
-      timeout: 25
+      timeout: 50
       argument: manual
 cron:
   script:
     - name: iepl-whitelist-7586
       cron: '*/3 * * * *'
-      timeout: 25
+      timeout: 50
       argument: auto
 tiles:
   - name: iepl-whitelist-7586
@@ -93,32 +93,51 @@ script-providers:
               (a === 203 && b === 0 && c === 113)) return null;
           return p.join('.');
         }
-        function http(method, url, body) {
+        function safeError(error) {
+          var value;
+          try {
+            value = typeof error === 'string' ? error : (error.message || JSON.stringify(error) || String(error));
+          } catch (_) { value = String(error); }
+          if (KEY) value = value.split(KEY).join('[已隐藏密钥]');
+          return value.replace(/pwl_[A-Za-z0-9_-]+/g, '[已隐藏密钥]').slice(0, 300);
+        }
+        function http(method, url, body, label) {
           return new Promise(function (resolve, reject) {
             var headers = {'X-Stash-Selected-Proxy': 'DIRECT', 'Cache-Control': 'no-cache'};
             if (method === 'post') {
               headers['X-API-Key'] = KEY;
               headers['Content-Type'] = 'application/x-www-form-urlencoded';
             }
-            var opts = {url: url, headers: headers, timeout: 5, insecure: false,
+            var limit = method === 'post' ? 20 : 8;
+            var started = Date.now();
+            var opts = {url: url, headers: headers, timeout: limit, insecure: false,
               'auto-cookie': false, 'auto-redirect': false};
             if (body !== undefined) opts.body = body;
             $httpClient[method](opts, function (error, response, data) {
-              if (error) { reject(new Error('直连网络请求失败')); return; }
-              resolve({status: Number((response || {}).status || (response || {}).statusCode), data: data});
+              var status = Number((response || {}).status || (response || {}).statusCode);
+              // A completed HTTP error response is different from transport failure.
+              if (status >= 100 && status <= 599) {
+                resolve({status: status, data: data});
+                return;
+              }
+              var elapsed = ((Date.now() - started) / 1000).toFixed(1);
+              reject(new Error(label + '直连请求失败（' + elapsed + ' 秒）：' +
+                (error ? safeError(error) : '未收到有效 HTTP 状态码')));
             });
           });
         }
         async function detect() {
           var sources = ['https://api.ipify.org', 'https://ipv4.icanhazip.com'];
+          var failures = [];
           for (var i = 0; i < sources.length; i++) {
             try {
-              var r = await http('get', sources[i] + '?t=' + Date.now());
+              var r = await http('get', sources[i] + '?t=' + Date.now(), undefined, 'IPv4 检测源 ' + (i + 1));
               var ip = publicV4(r.data);
               if (r.status === 200 && ip) return ip;
-            } catch (_) {}
+              failures.push('检测源 ' + (i + 1) + '：HTTP ' + r.status + ' 或非公网 IPv4');
+            } catch (error) { failures.push(error.message); }
           }
-          throw new Error('无法直连获取公网 IPv4；请检查网络或门户登录');
+          throw new Error('无法获取公网 IPv4；' + failures.join('；'));
         }
         async function run() {
           var ip = await detect();
@@ -128,7 +147,10 @@ script-providers:
           if (!force && saved.ip === ip && age >= 0 && age < 1800000) {
             return 'IP 未变化：' + ip;
           }
-          var r = await http('post', API, 'api=1&api_action=add_whitelist&ip=' + encodeURIComponent(ip));
+          var r = await http('post', API, 'api=1&api_action=add_whitelist&ip=' + encodeURIComponent(ip), 'API 添加（www.mkcloud.net）');
+          if (r.status === 401 || r.status === 403) {
+            throw new Error('API 认证或访问被拒绝（HTTP ' + r.status + '）；请核对当前 API Key、hosting_id 或服务端访问限制');
+          }
           var data;
           try { data = JSON.parse(r.data); }
           catch (_) { throw new Error('API 返回非 JSON（HTTP ' + r.status + '）'); }
