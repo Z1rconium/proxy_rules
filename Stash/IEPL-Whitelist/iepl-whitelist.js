@@ -1,12 +1,13 @@
 // Uses Stash APIs only. All external requests explicitly select DIRECT.
 (function () {
+  var FORCE_MANUAL = false; // Dedicated editor script sets this to true.
   var API = "https://www.mkcloud.net/index.php?m=provincewhitelist&hosting_id=7586";
   var KEY = ''; // 首次在 Stash 本地填入 API Key；请勿提交密钥到 GitHub
   var KEY_STORE = 'mkcloud.iepl.7586.api-key';
   if (KEY) $persistentStore.write(KEY, KEY_STORE);
   KEY = KEY || $persistentStore.read(KEY_STORE) || '';
   var STORE = 'mkcloud.iepl.7586.v1';
-  var MANUAL_URL = "http://iepl-whitelist.invalid/update/2ebbf7e4c17c03ee644144f1";
+  var MANUAL_URL = "http://www.mkcloud.net/iepl-whitelist-trigger/2ebbf7e4c17c03ee644144f1";
   var isTile = typeof $script !== 'undefined' && $script.type === 'tile';
   var isRequest = typeof $request !== 'undefined';
   var owner = String(Date.now()) + '-' + Math.random();
@@ -92,7 +93,7 @@
     var ip = await detect();
     var saved = read('.success');
     var age = Date.now() - (saved.time || 0);
-    var force = isRequest || (typeof $argument !== 'undefined' && $argument === 'manual');
+    var force = FORCE_MANUAL || isRequest || (typeof $argument !== 'undefined' && $argument === 'manual');
     if (!force && saved.ip === ip && age >= 0 && age < 1800000) {
       return 'IP 未变化：' + ip;
     }
@@ -114,6 +115,7 @@
   run().then(function (message) {
     write('.status', {time: Date.now(), message: message});
     release();
+    if (FORCE_MANUAL) $notification.post('IEPL 白名单', '手动检测完成', message);
     finish(true, message);
   }).catch(function (error) {
     // Only locally generated errors are shown; never reflect an API body or key.
